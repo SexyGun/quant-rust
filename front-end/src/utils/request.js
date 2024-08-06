@@ -2,7 +2,7 @@ import axios from "axios";
 
 // 配置基本的 Axios 实例
 const axiosInstance = axios.create({
-  baseURL: '', // 替换为你实际的 baseURL
+  baseURL: import.meta.env.BASE_URL, // 替换为你实际的 baseURL
 });
 
 /**
