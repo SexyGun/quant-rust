@@ -1,0 +1,21 @@
+version: '3'
+services:
+  frontend:
+    build:
+      context: ./front-end
+    ports:
+      - "80:80"
+    networks:
+      - my-network
+
+  backend:
+    build:
+      context: ./back-end
+    ports:
+      - "8080:8080"
+    networks:
+      - my-network
+
+networks:
+  my-network:
+    driver: bridge

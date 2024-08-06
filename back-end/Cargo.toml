@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 rocket = { version = "0.5.1", features = ["json"] }
+rocket_cors = "0.6.0"  # 添加这个依赖
