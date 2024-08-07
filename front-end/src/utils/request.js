@@ -27,8 +27,8 @@ async function request({ method, url, params = {}, data = {}, headers = {} }) {
     } else if (method.toUpperCase() === 'POST') {
       config.data = data;
     }
-    const data = await axiosInstance(config);
-    return data;
+    const res_data = await axiosInstance(config);
+    return res_data;
   } catch (error) {
     // 处理错误
     console.error('Request failed:', error.message);

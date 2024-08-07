@@ -1,8 +1,11 @@
 #[macro_use]
 extern crate rocket;
+
 use rocket::serde::json::Json;
 use rocket::serde::Serialize;
-use rocket_cors::{AllowedOrigins, CorsOptions };
+use rocket_cors::{AllowedOrigins, CorsOptions};
+
+mod diesel_mysql;
 
 #[derive(Debug, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -27,7 +30,8 @@ fn rocket() -> _ {
     let allowed_origins = AllowedOrigins::some_exact(&[
         "http://127.0.0.1",
         "http://112.74.46.63",
-        "http://127.0.0.1:5173"
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
     ]);
 
     // 配置 CORS 选项
@@ -39,5 +43,6 @@ fn rocket() -> _ {
     .unwrap(); // `unwrap` 是为了简化示例，实际应用中应处理可能的错误
     rocket::build()
         .attach(cors)
+        .attach(diesel_mysql::stage())
         .mount("/data", routes![test])
 }

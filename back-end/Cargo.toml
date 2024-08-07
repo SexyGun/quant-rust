@@ -6,3 +6,9 @@ edition = "2021"
 [dependencies]
 rocket = { version = "0.5.1", features = ["json"] }
 rocket_cors = "0.6.0"  # 添加这个依赖
+diesel = "2.0.0"
+diesel_migrations = "2.1.0"
+
+[dependencies.rocket_db_pools]
+version = "0.2.0"
+features = ["diesel_mysql"]
