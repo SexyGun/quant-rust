@@ -7,15 +7,12 @@ use rocket::response::Debug; // 导入 Rocket 的 Debug 类型，用于调试错
 use rocket::serde::{json::Json, Deserialize, Serialize};
 // 导入 Rocket 的 Json 类型以及 Deserialize 和 Serialize 特性，用于处理 JSON 数据。
 use rocket_db_pools::diesel::prelude::RunQueryDsl; // 导入 RunQueryDsl，用于执行 Diesel 的数据库查询。
-use rocket_db_pools::diesel::{AsyncConnection, MysqlPool}; // 导入 AsyncConnection 和 MysqlPool，用于与 MySQL 数据库异步交互。
+use rocket_db_pools::diesel::AsyncConnection; // 导入 AsyncConnection 和 MysqlPool，用于与 MySQL 数据库异步交互。
 use rocket_db_pools::{Connection, Database}; // 导入 Rocket 数据库池的 Connection 和 Database 类型。
+use back_end::db::connection::Db;
 
 // 定义一个通用的 Result 类型，默认错误类型为 Debug<diesel::result::Error>，用于处理数据库操作中的错误。
 type Result<T, E = Debug<diesel::result::Error>> = std::result::Result<T, E>;
-
-#[derive(Database)] // 使用 Rocket 的 Database 派生宏为 Db 类型提供数据库连接功能
-#[database("diesel_mysql")] // 指定 Rocket 配置文件中数据库池的名称为 diesel_mysql。
-struct Db(MysqlPool); // 定义一个名为 Db 的结构体，其中包含一个 MysqlPool 类型的字段，用于数据库连接池。
 
 // 派生 Debug、Clone、Deserialize、Serialize、Queryable 和 Insertable 特性，允许 Post 结构体进行调试、克隆、序列化、反序列化，以及与 Diesel 的数据库交互。
 #[derive(Debug, Clone, Deserialize, Serialize, Queryable, Insertable)]

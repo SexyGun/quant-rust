@@ -1,14 +1,15 @@
 <script setup>
 import { ref } from 'vue'
 import { ElButton } from 'element-plus';
-import { testGet, testDataBase, testPost, delPost, getPost } from './api.js';
+import { testGet, testDataBase, testPost, delPost, getPost, testGetStock } from './api.js';
 const count = ref(0);
 const onClick = async () => {
     count.value += 1;
-    const res = await testGet();
+    // const res = await testGet();
+    const res = await testGetStock();
     console.log(res);
-    const res_database = await testDataBase();
-    console.log(res_database);
+    // const res_database = await testDataBase();
+    // console.log(res_database);
 }
 
 const insertPost = async () => {

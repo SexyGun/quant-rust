@@ -6,7 +6,7 @@ use rocket::serde::Serialize;
 use rocket_cors::{AllowedOrigins, CorsOptions};
 
 mod diesel_mysql;
-mod lib;
+use back_end::stock_lib::get_all_stock_list;
 
 #[derive(Debug, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -17,8 +17,8 @@ struct MyResponse {
 }
 
 #[get("/")]
-fn test() -> Json<MyResponse> {
-    lib::get_all_stock_list::get_all_stock_data().unwrap();
+async fn test() -> Json<MyResponse> {
+    get_all_stock_list::get_all_stock_data().await.unwrap();
     Json(MyResponse {
         code: 0,
         data: "hello".to_string(),
@@ -46,5 +46,6 @@ fn rocket() -> _ {
     rocket::build()
         .attach(cors)
         .attach(diesel_mysql::stage())
+        .attach(back_end::routes::stock::stage())
         .mount("/data", routes![test])
 }
