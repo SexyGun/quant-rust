@@ -8,6 +8,10 @@ rocket = { version = "0.5.1", features = ["json"] }
 rocket_cors = "0.6.0"  # 添加这个依赖
 diesel = "2.0.0"
 diesel_migrations = "2.1.0"
+pyo3 = { version = "0.22.2", features = ["extension-module"] }
+
+[build-dependencies]
+pyo3-build-config = "0.22.2"
 
 [dependencies.rocket_db_pools]
 version = "0.2.0"
