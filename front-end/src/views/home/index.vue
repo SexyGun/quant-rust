@@ -1,50 +1,56 @@
 <script setup>
 import Card from "@/components/Card.vue";
+const capabilityList = [
+  {
+    header: "大盘股票汇总",
+    content: "总有一款 A 股匹配您",
+    image:
+      "https://wx2.sinaimg.cn/bmiddle/006ARE9vgy1fu4j4kq3pwj31gf0u0gnj.jpg",
+    targetRoute: "/stock",
+  },
+  {
+    header: "Todo 股票排名（选股指南？）",
+    content: "计算 Rps 排名并展示",
+    image: "https://tva3.sinaimg.cn/large/006rPqrTgy1gof3kgnqq8j30yh0voqa8.jpg",
+    targetRoute: "/stock",
+  },
+  {
+    header: "Todo 关注股票",
+    content:
+      "展示选择股票的基本信息，提供几种基本的量化算法的买入卖出点，并展示回测效果",
+    image:
+      "https://img1.baidu.com/it/u=1721606346,478465930&fm=253&fmt=auto&app=138&f=JPEG?w=800&h=460",
+    targetRoute: "/stock",
+  },
+  {
+    header: "Todo 套利？",
+    content: "目前还不知道什么叫套利 😊",
+    image:
+      "https://tvax3.sinaimg.cn/crop.0.0.444.444.1024/006A3pM6ly8fog8ajr6dxj30ch0cc16a.jpg?KID=imgbed,tva&Expires=1640361538&ssig=0Kbx2SfkFf",
+    targetRoute: "/stock",
+  },
+];
+const openTargetRoute = (url) => {
+  window.open(url);
+}
 </script>
 
 <template>
   <div>
-    <h1 class="title">Hover over the cards</h1>
+    <h1 class="title">选择你的韭菜</h1>
 
     <div id="app" class="container">
       <card
-        data-image="https://images.unsplash.com/photo-1479660656269-197ebb83b540?dpr=2&auto=compress,format&fit=crop&w=1199&h=798&q=80&cs=tinysrgb&crop="
+        v-for="ca in capabilityList"
+        :key="ca.header"
+        :data-image="ca.image"
+        @click="openTargetRoute(ca.targetRoute)"
       >
         <template #header>
-          <h1>Canyons</h1>
+          <h1>{{ ca.header }}</h1>
         </template>
         <template #content>
-          <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit.</p>
-        </template>
-      </card>
-      <card
-        data-image="https://images.unsplash.com/photo-1479659929431-4342107adfc1?dpr=2&auto=compress,format&fit=crop&w=1199&h=799&q=80&cs=tinysrgb&crop="
-      >
-        <template #header>
-          <h1>Beaches</h1>
-        </template>
-        <template #content>
-          <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit.</p>
-        </template>
-      </card>
-      <card
-        data-image="https://images.unsplash.com/photo-1479644025832-60dabb8be2a1?dpr=2&auto=compress,format&fit=crop&w=1199&h=799&q=80&cs=tinysrgb&crop="
-      >
-        <template #header>
-          <h1>Trees</h1>
-        </template>
-        <template #content>
-          <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit.</p>
-        </template>
-      </card>
-      <card
-        data-image="https://images.unsplash.com/photo-1479621051492-5a6f9bd9e51a?dpr=2&auto=compress,format&fit=crop&w=1199&h=811&q=80&cs=tinysrgb&crop="
-      >
-        <template #header>
-          <h1>Lakes</h1>
-        </template>
-        <template #content>
-          <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit.</p>
+          <p>{{ ca.content }}</p>
         </template>
       </card>
     </div>
