@@ -1,5 +1,8 @@
+use diesel::{ExpressionMethods, QueryDsl};
 use rocket::fairing::AdHoc;
 use rocket::response::Debug; // 导入 Rocket 的 Debug 类型，用于调试错误响应。
+use rocket::serde::json::Json;
+use rocket::serde::{Deserialize, Serialize};
 use rocket_db_pools::diesel::AsyncConnection; // 导入 AsyncConnection 用于与 MySQL 数据库异步交互。
 use rocket_db_pools::diesel::RunQueryDsl;
 use rocket_db_pools::Connection;
@@ -33,6 +36,65 @@ async fn get_basic_info(mut db: Connection<Db>) -> Result<()> {
     .await?;
     Ok(())
 }
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct PaginationStockInfo {
+    ts_code: Option<String>, // TS代码(主键)
+    symbol: Option<String>,  // 股票代码
+    name: Option<String>,    // 股票名称
+    area: Option<String>,    // 地域
+    current: i64,            // 当前页数
+    size: i64,               // 页面大小
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct ResStock {
+    data: Vec<StockInfo>,
+    current: i64,
+    size: i64,
+    total: i64,
+}
+
+#[post("/query", data = "<search>")]
+async fn query_basic(
+    mut db: Connection<Db>,
+    search: Json<PaginationStockInfo>,
+) -> Result<Json<ResStock>> {
+    let mut query = stock_info_list::table.into_boxed(); // 将查询转为动态构建模式
+    if let Some(ts_code) = &search.ts_code {
+        query = query.filter(stock_info_list::ts_code.eq(ts_code));
+    }
+    if let Some(symbol) = &search.symbol {
+        query = query.filter(stock_info_list::symbol.eq(symbol));
+    }
+    if let Some(name) = &search.name {
+        query = query.filter(stock_info_list::name.eq(name));
+    }
+    if let Some(area) = &search.area {
+        query = query.filter(stock_info_list::area.eq(area));
+    }
+    // 计算分页参数
+    let offset = (search.current - 1) * search.size;
+    // 执行查询并分页
+    let result: Vec<StockInfo> = query
+        .limit(search.size)
+        .offset(offset)
+        .load::<StockInfo>(&mut db)
+        .await?;
+    use diesel::dsl::count_star;
+    // 使用 count_star 函数来计算总数
+    let total = stock_info_list::table
+        .select(count_star())
+        .first(&mut db)
+        .await?;
+    Ok(Json(ResStock {
+        data: result,
+        current: search.current,
+        size: search.size,
+        total,
+    }))
+}
 
 pub fn stage() -> AdHoc {
     // AdHoc::on_ignite 是 Rocket 提供的一种机制，
@@ -40,8 +102,6 @@ pub fn stage() -> AdHoc {
     // 名称：一个字符串，用于标识这个阶段的名称，通常用于日志或调试信息。
     // 初始化闭包：一个异步闭包（async {}），用于执行初始化代码
     AdHoc::on_ignite("Route Stock Stage", |rocket| async {
-        rocket
-            // .attach(Db::init())
-            .mount("/stock", routes![get_basic_info])
+        rocket.mount("/stock", routes![get_basic_info, query_basic])
     })
 }

@@ -1,12 +1,12 @@
 #[macro_use]
 extern crate rocket;
 
-use rocket::serde::json::Json;
 use rocket::serde::Serialize;
+use rocket::{fairing::AdHoc, serde::json::Json};
 use rocket_cors::{AllowedOrigins, CorsOptions};
 
-mod diesel_mysql;
-use back_end::stock_lib::get_all_stock_list;
+use back_end::{db::connection::Db, stock_lib::get_all_stock_list};
+use rocket_db_pools::Database; // 导入 Rocket 数据库池的 Connection 和 Database 类型。
 
 #[derive(Debug, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -45,7 +45,9 @@ fn rocket() -> _ {
     .unwrap(); // `unwrap` 是为了简化示例，实际应用中应处理可能的错误
     rocket::build()
         .attach(cors)
-        .attach(diesel_mysql::stage())
+        .attach(AdHoc::on_ignite("Db Init Stage", |rocket| async {
+            rocket.attach(Db::init())
+        }))
         .attach(back_end::routes::stock::stage())
         .mount("/data", routes![test])
 }
