@@ -12,7 +12,7 @@ const capabilityList = [
     header: "Todo 股票排名（选股指南？）",
     content: "计算 Rps 排名并展示",
     image: "https://tva3.sinaimg.cn/large/006rPqrTgy1gof3kgnqq8j30yh0voqa8.jpg",
-    targetRoute: "/stock",
+    targetRoute: "/stock-select",
   },
   {
     header: "Todo 关注股票",

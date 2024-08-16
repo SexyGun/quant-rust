@@ -9,6 +9,8 @@ rocket_cors = "0.6.0"  # 添加这个依赖
 diesel = "2.0.0"
 diesel_migrations = "2.1.0"
 pyo3 = { version = "0.22.2", features = ["extension-module"] }
+chrono = "0.4" # 时间库
+ndarray = "0.16.1" # 线性代数等数学工具库
 
 [build-dependencies]
 pyo3-build-config = "0.22.2"

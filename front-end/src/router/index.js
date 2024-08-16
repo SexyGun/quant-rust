@@ -14,6 +14,12 @@ const router = createRouter({
       name: 'stockBasic',
       component: () => import('../views/stock_basic/index.vue')
     },
+    // stock-select
+    {
+      path: '/stock-select',
+      name: 'stockSelect',
+      component: () => import('../views/stock_select/index.vue')
+    },
   ]
 })
 

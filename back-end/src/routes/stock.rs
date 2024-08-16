@@ -1,3 +1,9 @@
+use crate::db::schema::{rps_values, stock_info_list};
+use crate::db::{
+    connection::Db,
+    stock_info::{StockInfo, StockPriceInfo},
+};
+use crate::stock_lib::{get_all_stock_list, get_stock_rps_list};
 use diesel::{ExpressionMethods, QueryDsl};
 use rocket::fairing::AdHoc;
 use rocket::response::Debug; // 导入 Rocket 的 Debug 类型，用于调试错误响应。
@@ -6,10 +12,6 @@ use rocket::serde::{Deserialize, Serialize};
 use rocket_db_pools::diesel::AsyncConnection; // 导入 AsyncConnection 用于与 MySQL 数据库异步交互。
 use rocket_db_pools::diesel::RunQueryDsl;
 use rocket_db_pools::Connection;
-
-use crate::db::schema::stock_info_list;
-use crate::db::{connection::Db, stock_info::StockInfo};
-use crate::stock_lib::get_all_stock_list;
 
 // 定义一个通用的 Result 类型，默认错误类型为 Debug<diesel::result::Error>，用于处理数据库操作中的错误。
 type Result<T, E = Debug<diesel::result::Error>> = std::result::Result<T, E>;
@@ -36,6 +38,62 @@ async fn get_basic_info(mut db: Connection<Db>) -> Result<()> {
     .await?;
     Ok(())
 }
+
+#[get("/test")]
+async fn get_stock_rps(db: Connection<Db>) -> Result<()> {
+    // let stock_basic_info_list: Vec<StockPriceInfo> = get_stock_rps_list::get_stock_price_data(
+    //     "002594.SZ".to_string(),
+    //     ("20240101".to_string(), "20240813".to_string()),
+    // )
+    // .await
+    // .expect("获取单个股票数据失败");
+    // println!("{:?}", stock_basic_info_list);
+    match get_stock_rps_list::col_stock_rps(db).await {
+        Ok(()) => {}
+        Err(e) => {
+            println!("{:?}", e)
+        }
+    };
+    Ok(())
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct RpsRequest {
+    date: Option<String>,
+}
+#[derive(Serialize, Deserialize, Queryable)]
+#[serde(crate = "rocket::serde")]
+struct RpsResponse {
+    ts_code: String,
+    name: Option<String>,
+    rps: Option<f64>,
+    increase: Option<f64>,
+}
+
+#[post("/rps-top", data = "<search>")]
+async fn get_stock_rps_top(
+    mut db: Connection<Db>,
+    search: Json<RpsRequest>,
+) -> Result<Json<Vec<RpsResponse>>> {
+    if let Some(date) = &search.date {
+        let result: Vec<RpsResponse> = stock_info_list::table
+            .inner_join(rps_values::table)
+            .filter(rps_values::trade_date.eq(date.to_string()))
+            .select((
+                rps_values::ts_code,
+                stock_info_list::name,
+                rps_values::rps,
+                rps_values::increase,
+            ))
+            .order(rps_values::rps.desc())
+            .load(&mut db)
+            .await?;
+        return Ok(Json(result));
+    }
+    Ok(Json(vec![]))
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(crate = "rocket::serde")]
 struct PaginationStockInfo {
@@ -102,6 +160,14 @@ pub fn stage() -> AdHoc {
     // 名称：一个字符串，用于标识这个阶段的名称，通常用于日志或调试信息。
     // 初始化闭包：一个异步闭包（async {}），用于执行初始化代码
     AdHoc::on_ignite("Route Stock Stage", |rocket| async {
-        rocket.mount("/stock", routes![get_basic_info, query_basic])
+        rocket.mount(
+            "/stock",
+            routes![
+                get_basic_info,
+                query_basic,
+                get_stock_rps,
+                get_stock_rps_top
+            ],
+        )
     })
 }
