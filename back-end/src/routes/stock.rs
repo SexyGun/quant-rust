@@ -1,14 +1,13 @@
 use crate::db::schema::{rps_values, stock_info_list};
-use crate::db::{
-    connection::Db,
-    stock_info::{StockInfo, StockPriceInfo},
-};
+use crate::db::{connection::Db, stock_info::StockInfo};
 use crate::stock_lib::{get_all_stock_list, get_stock_rps_list};
 use diesel::{ExpressionMethods, QueryDsl};
 use rocket::fairing::AdHoc;
 use rocket::response::Debug; // 导入 Rocket 的 Debug 类型，用于调试错误响应。
 use rocket::serde::json::Json;
 use rocket::serde::{Deserialize, Serialize};
+use rocket::tokio;
+use rocket::State;
 use rocket_db_pools::diesel::AsyncConnection; // 导入 AsyncConnection 用于与 MySQL 数据库异步交互。
 use rocket_db_pools::diesel::RunQueryDsl;
 use rocket_db_pools::Connection;
@@ -38,23 +37,77 @@ async fn get_basic_info(mut db: Connection<Db>) -> Result<()> {
     .await?;
     Ok(())
 }
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct ReqFetchStockRps {
+    date: Option<String>,
+}
 
-#[get("/test")]
-async fn get_stock_rps(db: Connection<Db>) -> Result<()> {
-    // let stock_basic_info_list: Vec<StockPriceInfo> = get_stock_rps_list::get_stock_price_data(
-    //     "002594.SZ".to_string(),
-    //     ("20240101".to_string(), "20240813".to_string()),
-    // )
-    // .await
-    // .expect("获取单个股票数据失败");
-    // println!("{:?}", stock_basic_info_list);
-    match get_stock_rps_list::col_stock_rps(db).await {
+#[post("/fetch_stock_rps_list", data = "<req>")]
+async fn get_stock_rps(
+    db: Connection<Db>,
+    db_state: &State<Db>,
+    req: Json<ReqFetchStockRps>,
+) -> Result<()> {
+    match get_stock_rps_list::col_stock_rps(db, db_state, req.date.clone()).await {
         Ok(()) => {}
         Err(e) => {
             println!("{:?}", e)
         }
     };
     Ok(())
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct ReqFetchStockDailyRange {
+    closing_date: Option<String>,
+    range: Option<i64>,
+}
+
+use rocket::http::Status;
+use rocket::response::status;
+
+#[post("/fetch_stock_daily_range", data = "<req>")]
+async fn get_stock_daily_range(
+    db: Connection<Db>,
+    req: Json<ReqFetchStockDailyRange>,
+) -> status::Custom<&'static str> {
+    // 同步执行
+    // match get_stock_rps_list::fetch_stock_daily_range(
+    //     db,
+    //     req.closing_date.clone(),
+    //     req.range.clone(),
+    // )
+    // .await
+    // {
+    //     Ok(()) => {}
+    //     Err(e) => {
+    //         println!("{:?}", e)
+    //     }
+    // };
+    
+    // tokio::spawn函数内的get_stock_rps_list::fetch_stock_daily_range函数会在新的异步任务中执行。这个任务是立即被安排在Tokio运行时上的，所以你可以认为它已经开始执行了。
+    tokio::spawn(async move {
+        match get_stock_rps_list::fetch_stock_daily_range(
+            db,
+            req.closing_date.clone(),
+            req.range.clone(),
+        )
+        .await
+        {
+            Ok(()) => {}
+            Err(e) => {
+                println!("{:?}", e)
+            }
+        };
+    });
+
+    // 立即返回一个消息给客户端
+    status::Custom(
+        Status::Accepted,
+        "The request is being processed. Please wait.",
+    )
 }
 
 #[derive(Serialize, Deserialize)]
@@ -166,7 +219,8 @@ pub fn stage() -> AdHoc {
                 get_basic_info,
                 query_basic,
                 get_stock_rps,
-                get_stock_rps_top
+                get_stock_rps_top,
+                get_stock_daily_range,
             ],
         )
     })

@@ -1,0 +1,1 @@
+DROP stock_daily_info;

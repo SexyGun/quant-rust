@@ -1,4 +1,4 @@
-use crate::db::schema::{rps_values, stock_info_list};
+use crate::db::schema::{rps_values, stock_info_list, stock_daily_info};
 use pyo3::prelude::*;
 use rocket::serde::{Deserialize, Serialize};
 
@@ -22,10 +22,11 @@ pub struct StockInfo {
     pub act_ent_type: Option<String>, // 实控人企业性质
 }
 
-#[derive(FromPyObject, Debug, Clone)]
+#[derive(FromPyObject, Debug, Clone, Queryable, Insertable)]
 #[pyo3(from_item_all)]
+#[diesel(table_name=stock_daily_info)] // 指定 Diesel 中表的名称为 stock_info
 pub struct StockPriceInfo {
-    pub ts_code: Option<String>,    // 股票代码
+    pub ts_code: String,            // 股票代码
     pub trade_date: Option<String>, // 交易日期
     pub open: Option<f64>,          // 开盘价
     pub close: Option<f64>,         // 收盘价
@@ -39,8 +40,7 @@ pub struct StockPriceInfo {
 }
 
 // 这里用 Option 是因为接口返回不一定有值，因此需要用 Option 来接一下
-#[derive(FromPyObject, Debug, Clone, Deserialize, Serialize, Queryable, Insertable)]
-#[serde(crate = "rocket::serde")] // 指定 serde 使用 Rocket 自带的 serde 库，而不是默认的 serde。
+#[derive(FromPyObject, Debug, Clone, Queryable, Insertable)]
 #[diesel(table_name=rps_values)] // 指定 Diesel 中表的名称为 stock_info
 pub struct StockRps {
     pub ts_code: String,            // 股票代码

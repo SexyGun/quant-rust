@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { ElDatePicker, ElButton } from "element-plus";
-import { getStockRpsTest, getStockRpsList } from "./api";
+import { getStockRps, getStockRpsList, getStockDaily } from "./api";
 import StockCard from "./components/StockCard.vue";
 import moment from "moment";
 
@@ -26,12 +26,23 @@ const stockList = ref([
   },
 ]);
 const searchDate = ref(new Date());
-
+const importStockRpsLoading = ref(false);
+const importDailyStockLoading = ref(false);
 // computed
 
 // methods
-const test = () => {
-  getStockRpsTest();
+const importStockRps = async () => {
+  importDailyStockLoading.value = true;
+  await getStockRps({
+    date: moment(searchDate.value).format("YYYYMMDD"),
+  });
+  importDailyStockLoading.value = false;
+  changeDate()
+};
+const importDailyStock = async () => {
+  importStockRpsLoading.value = true;
+  await getStockDaily();
+  importStockRpsLoading.value = false;
 };
 const disabledDate = (time) => {
   return time.getTime() > Date.now();
@@ -61,7 +72,8 @@ const goToBaidu = (code) => {
         style="margin-right: 10px"
         @change="changeDate"
       />
-      <ElButton @click="test" type="primary">当日新数据入库</ElButton>
+      <ElButton @click="importStockRps" type="primary" :loading="importStockRpsLoading">Rps 新数据入库</ElButton>
+      <ElButton @click="importDailyStock" type="primary" :loading="importDailyStockLoading">股票新数据入库</ElButton>
     </div>
     <div class="card-container">
       <StockCard
