@@ -390,7 +390,7 @@ pub async fn fetch_stock_daily_range(
 
 use rocket_db_pools::diesel::AsyncMysqlConnection;
 // 获取本地股票价格数据
-async fn get_local_stock_price_data(
+pub async fn get_local_stock_price_data(
     conn: &mut AsyncMysqlConnection,
     ts_code: String,
 ) -> Result<Vec<StockPriceInfo>> {

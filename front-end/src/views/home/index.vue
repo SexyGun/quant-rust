@@ -20,7 +20,7 @@ const capabilityList = [
       "展示选择股票的基本信息，提供几种基本的量化算法的买入卖出点，并展示回测效果",
     image:
       "https://img1.baidu.com/it/u=1721606346,478465930&fm=253&fmt=auto&app=138&f=JPEG?w=800&h=460",
-    targetRoute: "/stock",
+    targetRoute: "/stock-simulate",
   },
   {
     header: "Todo 套利？",

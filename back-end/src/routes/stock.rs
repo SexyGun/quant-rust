@@ -1,6 +1,9 @@
 use crate::db::schema::{rps_values, stock_info_list};
 use crate::db::{connection::Db, stock_info::StockInfo};
-use crate::stock_lib::{get_all_stock_list, get_stock_rps_list};
+use crate::stock_lib::{
+    get_all_stock_list, get_stock_rps_list,
+    stock_trade::{simulate_stock_trade, TradeResult},
+};
 use diesel::{ExpressionMethods, QueryDsl};
 use rocket::fairing::AdHoc;
 use rocket::response::Debug; // 导入 Rocket 的 Debug 类型，用于调试错误响应。
@@ -86,7 +89,7 @@ async fn get_stock_daily_range(
     //         println!("{:?}", e)
     //     }
     // };
-    
+
     // tokio::spawn函数内的get_stock_rps_list::fetch_stock_daily_range函数会在新的异步任务中执行。这个任务是立即被安排在Tokio运行时上的，所以你可以认为它已经开始执行了。
     tokio::spawn(async move {
         match get_stock_rps_list::fetch_stock_daily_range(
@@ -207,6 +210,39 @@ async fn query_basic(
     }))
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct SimulateReq {
+    code: String,
+}
+
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct SimulateRes {
+    df_stock: Vec<TradeResult>,
+    buy_days_query: Vec<Option<String>>,
+    sell_days_query: Vec<Option<String>>,
+    best_param: (
+        Option<usize>,
+        Option<usize>,
+        Option<f64>,
+        Option<f64>,
+        Option<i32>,
+    ),
+}
+#[post("/simulate", data = "<req>")]
+async fn stock_simulate(db: Connection<Db>, req: Json<SimulateReq>) -> Result<Json<SimulateRes>> {
+    let res = simulate_stock_trade(db, vec![req.code.clone()], 100000.0, None, None).await;
+    println!("{:#?}", res);
+    let (code_result, best_param) = res.get(&req.code).unwrap().clone();
+    Ok(Json(SimulateRes {
+        df_stock: code_result.0,
+        buy_days_query: code_result.1,
+        sell_days_query: code_result.2,
+        best_param,
+    }))
+}
+
 pub fn stage() -> AdHoc {
     // AdHoc::on_ignite 是 Rocket 提供的一种机制，
     // 用于在 Rocket 启动时执行自定义的初始化代码。这个方法接受两个参数：
@@ -221,6 +257,7 @@ pub fn stage() -> AdHoc {
                 get_stock_rps,
                 get_stock_rps_top,
                 get_stock_daily_range,
+                stock_simulate,
             ],
         )
     })

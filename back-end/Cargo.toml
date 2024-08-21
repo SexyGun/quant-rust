@@ -12,6 +12,9 @@ pyo3 = { version = "0.22.2", features = ["extension-module"] }
 chrono = "0.4" # 时间库
 ndarray = "0.16.1" # 线性代数等数学工具库
 rayon = "1.5.1" # rayon库提供了并行迭代器，可以自动将数据分割成多个块，并在多个线程上并行处理这些块。
+ta = "0.5.0" # Technical analysis library. Implements number of indicators: EMA, SMA, RSI, MACD, Stochastic, etc.
+rand = "0.8.5" # 用于生成随机数
+
 [build-dependencies]
 pyo3-build-config = "0.22.2"
 

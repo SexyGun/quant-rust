@@ -14,11 +14,15 @@ const router = createRouter({
       name: 'stockBasic',
       component: () => import('../views/stock_basic/index.vue')
     },
-    // stock-select
     {
       path: '/stock-select',
       name: 'stockSelect',
       component: () => import('../views/stock_select/index.vue')
+    },
+    {
+      path: '/stock-simulate',
+      name: 'stocksimulate',
+      component: () => import('../views/stock_simulate/index.vue')
     },
   ]
 })
