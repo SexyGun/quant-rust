@@ -4,6 +4,8 @@ use crate::stock_lib::{
     get_all_stock_list, get_stock_rps_list,
     stock_trade::{simulate_stock_trade, OperateRecord, TradeResult},
 };
+use chrono::NaiveDate;
+use diesel::expression::is_aggregate::No;
 use diesel::{ExpressionMethods, QueryDsl};
 use rocket::fairing::AdHoc;
 use rocket::response::Debug; // 导入 Rocket 的 Debug 类型，用于调试错误响应。
@@ -44,6 +46,7 @@ async fn get_basic_info(mut db: Connection<Db>) -> Result<()> {
 #[serde(crate = "rocket::serde")]
 struct ReqFetchStockRps {
     date: Option<String>,
+    range: Option<usize>,
 }
 
 #[post("/fetch_stock_rps_list", data = "<req>")]
@@ -52,7 +55,7 @@ async fn get_stock_rps(
     db_state: &State<Db>,
     req: Json<ReqFetchStockRps>,
 ) -> Result<()> {
-    match get_stock_rps_list::col_stock_rps(db, db_state, req.date.clone()).await {
+    match get_stock_rps_list::col_stock_rps(db, db_state, req.date.clone(), req.range).await {
         Ok(()) => {}
         Err(e) => {
             println!("{:?}", e)
@@ -118,22 +121,43 @@ async fn get_stock_daily_range(
 struct RpsRequest {
     date: Option<String>,
 }
-#[derive(Serialize, Deserialize, Queryable)]
-#[serde(crate = "rocket::serde")]
-struct RpsResponse {
+#[derive(Queryable)]
+struct CurDateRpsResponse {
     ts_code: String,
     name: Option<String>,
     rps: Option<f64>,
     increase: Option<f64>,
 }
 
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+enum StockRankChange {
+    NoChange,
+    Increase(usize),
+    Decrease(usize),
+    NewInBoard,
+}
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct RpsResponse {
+    ts_code: String,
+    name: Option<String>,
+    rps: Option<f64>,
+    increase: Option<f64>,
+    rank_change: StockRankChange,
+}
 #[post("/rps-top", data = "<search>")]
 async fn get_stock_rps_top(
     mut db: Connection<Db>,
     search: Json<RpsRequest>,
 ) -> Result<Json<Vec<RpsResponse>>> {
     if let Some(date) = &search.date {
-        let result: Vec<RpsResponse> = stock_info_list::table
+        // 定义格式化字符串
+        let format = "%Y%m%d";
+        let cur_date = NaiveDate::parse_from_str(date, format).unwrap();
+        let prev_date = cur_date.pred_opt().unwrap().format(format).to_string();
+        // 查询当天的股票RPS排名
+        let result: Vec<CurDateRpsResponse> = stock_info_list::table
             .inner_join(rps_values::table)
             .filter(rps_values::trade_date.eq(date.to_string()))
             .select((
@@ -145,9 +169,68 @@ async fn get_stock_rps_top(
             .order(rps_values::rps.desc())
             .load(&mut db)
             .await?;
-        return Ok(Json(result));
+        // 查询前一天的股票RPS排名
+        let prev_rank: Vec<String> = rps_values::table
+            .filter(rps_values::trade_date.eq(prev_date))
+            .select(rps_values::ts_code)
+            .order(rps_values::rps.desc())
+            .load(&mut db)
+            .await?;
+        // 计算股票排名变化
+        let rank_change: Vec<RpsResponse> = result
+            .into_iter()
+            .enumerate()
+            .map(|(cur_index, r)| {
+                let index = prev_rank.iter().position(|x| x == &r.ts_code);
+                match index {
+                    Some(i) => {
+                        if cur_index == i {
+                            RpsResponse {
+                                ts_code: r.ts_code,
+                                name: r.name,
+                                rps: r.rps,
+                                increase: r.increase,
+                                rank_change: StockRankChange::NoChange,
+                            }
+                        } else if cur_index < i {
+                            RpsResponse {
+                                ts_code: r.ts_code,
+                                name: r.name,
+                                rps: r.rps,
+                                increase: r.increase,
+                                rank_change: StockRankChange::Increase(i - cur_index),
+                            }
+                        } else {
+                            RpsResponse {
+                                ts_code: r.ts_code,
+                                name: r.name,
+                                rps: r.rps,
+                                increase: r.increase,
+                                rank_change: StockRankChange::Decrease(cur_index - i),
+                            }
+                        }
+                    }
+                    None => RpsResponse {
+                        ts_code: r.ts_code,
+                        name: r.name,
+                        rps: r.rps,
+                        increase: r.increase,
+                        rank_change: StockRankChange::NewInBoard,
+                    },
+                }
+            })
+            .collect();
+        return Ok(Json(rank_change));
     }
     Ok(Json(vec![]))
+}
+
+#[get("/clear/rps-top")]
+async fn clear_stock_rps_top(mut db: Connection<Db>) -> Result<()> {
+    diesel::sql_query("TRUNCATE rps_values")
+        .execute(&mut db)
+        .await?;
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize)]
@@ -273,6 +356,7 @@ pub fn stage() -> AdHoc {
                 get_stock_rps_top,
                 get_stock_daily_range,
                 stock_simulate,
+                clear_stock_rps_top
             ],
         )
     })

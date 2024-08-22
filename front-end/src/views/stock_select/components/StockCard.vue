@@ -1,8 +1,37 @@
 <script setup>
+import { computed } from "vue";
+const props = defineProps({
+  stock: {
+    type: Object,
+    required: true,
+  },
+});
+
+const cardStyle = computed(() => {
+  const { rank_change } = props.stock;
+  if (!rank_change) return {};
+  let styleMap = {
+    NoChange: {},
+    NewInBoard: {
+      backgroundImage: "linear-gradient(to bottom, #20002c, #cbb4d4)",
+    },
+    Increase: {
+      backgroundImage: "linear-gradient(to bottom, #ba8b02, #181818)",
+    },
+    Decrease: {
+      backgroundImage: "linear-gradient(to bottom, #304352, #d7d2cc)",
+    },
+  };
+  if (typeof rank_change === "string") {
+    return styleMap[rank_change];
+  } else {
+    return styleMap[Object.keys(rank_change)[0]];
+  }
+});
 </script>
 
 <template>
-  <div class="card">
+  <div class="card" :style="cardStyle">
     <h3 class="title">
       <slot name="title"></slot>
     </h3>
@@ -56,5 +85,4 @@
   width: 200px;
   display: block;
 }
-
 </style>

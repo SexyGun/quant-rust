@@ -135,7 +135,9 @@ pub async fn col_stock_rps(
     mut db: Connection<Db>,
     db_state: &State<Db>,
     end_date: Option<String>,
+    range: Option<usize>,
 ) -> Result<()> {
+    let rps_range = range.unwrap_or(120);
     let code_list = stock_info_list::table
         .select(stock_info_list::ts_code)
         .load::<String>(&mut db)
@@ -187,21 +189,26 @@ pub async fn col_stock_rps(
                     let db_conn = db_conn.deref_mut();
                     match get_local_stock_price_data(db_conn, code.to_string()).await {
                         Ok(stock_basic_info_list) => {
-                            if let (Some(before_stock), Some(now_stock)) = (
-                                <[StockPriceInfo]>::first(&stock_basic_info_list),
-                                stock_basic_info_list.last(),
-                            ) {
-                                result.push(StockIncrease {
-                                    ts_code: code.to_string(),
-                                    increase: (now_stock.close.unwrap()
-                                        - before_stock.close.unwrap())
-                                        / before_stock.close.unwrap()
-                                        * 100.0,
-                                    trade_date: Some(today_str.to_string()),
-                                });
-                            } else {
-                                println!("三无 Code: {:?}", code);
+                            let last_date_index = stock_basic_info_list.iter().position(|stock| {
+                                stock.trade_date.as_ref().unwrap() == today_str.as_str()
+                            });
+                            if last_date_index.is_none() {
+                                eprintln!("没有找到当天的数据");
+                                continue;
                             }
+                            let before_stock = if last_date_index.unwrap() > rps_range {
+                                stock_basic_info_list[last_date_index.unwrap() - rps_range].clone()
+                            } else {
+                                stock_basic_info_list[0].clone()
+                            };
+                            let now_stock = stock_basic_info_list[last_date_index.unwrap()].clone();
+                            result.push(StockIncrease {
+                                ts_code: code.to_string(),
+                                increase: (now_stock.close.unwrap() - before_stock.close.unwrap())
+                                    / before_stock.close.unwrap()
+                                    * 100.0,
+                                trade_date: Some(today_str.to_string()),
+                            });
                         }
                         Err(e) => eprintln!("Error fetching stock data: {:?}", e),
                     }
