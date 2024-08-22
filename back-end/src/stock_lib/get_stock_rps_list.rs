@@ -189,9 +189,25 @@ pub async fn col_stock_rps(
                     let db_conn = db_conn.deref_mut();
                     match get_local_stock_price_data(db_conn, code.to_string()).await {
                         Ok(stock_basic_info_list) => {
-                            let last_date_index = stock_basic_info_list.iter().position(|stock| {
-                                stock.trade_date.as_ref().unwrap() == today_str.as_str()
-                            });
+                            let mut last_date_index =
+                                stock_basic_info_list.iter().position(|stock| {
+                                    stock.trade_date.as_ref().unwrap() == today_str.as_str()
+                                });
+                            let mut cur_today_str = today_str.to_string();
+                            // 股票周六日不交易，所以当天的数据不存在
+                            // 如果当天的数据不存在，向前查找
+                            while last_date_index.is_none() {
+                                // 定义格式化字符串
+                                let format = "%Y%m%d";
+                                let cur_date =
+                                    NaiveDate::parse_from_str(&cur_today_str, format).unwrap();
+                                let prev_date =
+                                    cur_date.pred_opt().unwrap().format(format).to_string();
+                                last_date_index = stock_basic_info_list.iter().position(|stock| {
+                                    stock.trade_date.as_ref().unwrap() == prev_date.as_str()
+                                });
+                                cur_today_str = prev_date;
+                            }
                             if last_date_index.is_none() {
                                 eprintln!("没有找到当天的数据");
                                 continue;

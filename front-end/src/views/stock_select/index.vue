@@ -40,18 +40,18 @@ const searchDateRange = ref(120);
 
 // methods
 const importStockRps = async () => {
-  importDailyStockLoading.value = true;
+  importStockRpsLoading.value = true;
   await getStockRps({
     date: moment(searchDate.value).format("YYYYMMDD"),
     range: searchDateRange.value,
   });
-  importDailyStockLoading.value = false;
+  importStockRpsLoading.value = false;
   changeDate();
 };
 const importDailyStock = async () => {
-  importStockRpsLoading.value = true;
+  importDailyStockLoading.value = true;
   await getStockDaily();
-  importStockRpsLoading.value = false;
+  importDailyStockLoading.value = false;
 };
 const disabledDate = (time) => {
   return time.getTime() > Date.now();
