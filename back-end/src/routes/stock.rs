@@ -2,7 +2,7 @@ use crate::db::schema::{rps_values, stock_info_list};
 use crate::db::{connection::Db, stock_info::StockInfo};
 use crate::stock_lib::{
     get_all_stock_list, get_stock_rps_list,
-    stock_trade::{simulate_stock_trade, TradeResult},
+    stock_trade::{simulate_stock_trade, OperateRecord, TradeResult},
 };
 use diesel::{ExpressionMethods, QueryDsl};
 use rocket::fairing::AdHoc;
@@ -213,32 +213,47 @@ async fn query_basic(
 #[derive(Serialize, Deserialize)]
 #[serde(crate = "rocket::serde")]
 struct SimulateReq {
-    code: String,
+    code: String,                         // 股票代码
+    assets: Option<f64>,                  // 初始资金
+    n1_range: Option<(usize, usize)>,     // N1范围
+    n2_range: Option<(usize, usize)>,     // N2范围
+    win_range: Option<(f64, f64)>,        // 盈利范围
+    loss_range: Option<(f64, f64)>,       // 亏损范围
+    adjust_range: Option<(usize, usize)>, // 调整范围
 }
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 struct SimulateRes {
     df_stock: Vec<TradeResult>,
-    buy_days_query: Vec<Option<String>>,
-    sell_days_query: Vec<Option<String>>,
+    operate_record: Vec<OperateRecord>,
     best_param: (
         Option<usize>,
         Option<usize>,
         Option<f64>,
         Option<f64>,
-        Option<i32>,
+        Option<usize>,
     ),
 }
 #[post("/simulate", data = "<req>")]
 async fn stock_simulate(db: Connection<Db>, req: Json<SimulateReq>) -> Result<Json<SimulateRes>> {
-    let res = simulate_stock_trade(db, vec![req.code.clone()], 100000.0, None, None).await;
-    println!("{:#?}", res);
+    let res = simulate_stock_trade(
+        db,
+        vec![req.code.clone()],
+        req.assets.unwrap_or(100000.0),
+        None,
+        None,
+        req.n1_range.clone(),
+        req.n2_range.clone(),
+        req.win_range.clone(),
+        req.loss_range.clone(),
+        req.adjust_range.clone(),
+    )
+    .await;
     let (code_result, best_param) = res.get(&req.code).unwrap().clone();
     Ok(Json(SimulateRes {
         df_stock: code_result.0,
-        buy_days_query: code_result.1,
-        sell_days_query: code_result.2,
+        operate_record: code_result.1,
         best_param,
     }))
 }

@@ -36,6 +36,10 @@ const createChart = () => {
   if (chartInstance.value) {
     chartInstance.value.destroy();
   }
+  const y_step =
+    (props.strategyData[props.strategyData.length - 1] -
+      props.strategyData[0]) /
+    15;
   const ctx = chart.value.getContext("2d");
   chartInstance.value = new Chart(ctx, {
     type: "line",
@@ -60,6 +64,15 @@ const createChart = () => {
     },
     options: {
       scales: {
+        x: {
+          ticks: {
+            callback: function (value, index, values) {
+              let label = props.labels[index];
+              // 每隔5个标签显示一个
+              return index % 5 === 0 ? label : "";
+            },
+          },
+        },
         y: {
           type: "linear",
           position: "left",
@@ -79,29 +92,33 @@ const createChart = () => {
           text: "模拟交易",
         },
         annotation: {
-          annotations: props.buyAndSellSignal
-            .filter((signal) => signal.type != "none")
-            .map((signal) => ({
-              type: "line",
-              xMin: signal.x,
-              xMax: signal.x,
-              yMin: signal.type === "buy" ? signal.y + 0.5 : signal.y - 0.5,
-              yMax: signal.y,
-              borderColor: signal.type === "buy" ? "red" : "green",
-              borderWidth: 2,
-              label: {
-                content: signal.type === "buy" ? "买入" : "卖出",
+          annotations: props.buyAndSellSignal.map((signal) => ({
+            type: "line",
+            xMin: signal.operate_date,
+            xMax: signal.operate_date,
+            yMin:
+              signal.order_type === "Buy"
+                ? signal.close + y_step
+                : signal.close - y_step,
+            yMax: signal.close,
+            borderColor: signal.order_type === "Buy" ? "red" : "green",
+            borderWidth: 2,
+            label: {
+              content:
+                signal.order_type === "Buy"
+                  ? `买入 ${signal.operate_num} 股`
+                  : `卖出 ${signal.operate_num} 股`,
+              display: true,
+              position: "start",
+              yAdjust: signal.order_type === "Buy" ? -10 : 10,
+            },
+            arrowHeads: {
+              end: {
                 display: true,
-                position: "start",
-                yAdjust: signal.type === "buy" ? -10 : 10,
+                length: 10,
               },
-              arrowHeads: {
-                end: {
-                  display: true,
-                  length: 10,
-                },
-              },
-            })),
+            },
+          })),
         },
       },
     },

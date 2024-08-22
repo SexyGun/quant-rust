@@ -14,11 +14,7 @@ const props = defineProps({
     type: Array,
     required: true,
   },
-  standerdData: {
-    type: Array,
-    required: true,
-  },
-  strategyData: {
+  assetsdData: {
     type: Array,
     required: true,
   },
@@ -39,16 +35,8 @@ const createChart = () => {
       labels: props.labels,
       datasets: [
         {
-          label: "基准收益",
-          data: props.standerdData,
-          borderColor: "#177cb0",
-          backgroundColor: "#177cb0",
-          yAxisID: "y",
-        },
-        {
-          label: "趋势突破策略收益",
-          data: props.strategyData,
-
+          label: "资产",
+          data: props.assetsdData,
           borderColor: "#9d2933",
           backgroundColor: "#9d2933",
           yAxisID: "y",
@@ -78,7 +66,7 @@ const createChart = () => {
         },
         title: {
           display: true,
-          text: "计算基准收益/趋势突破策略收益",
+          text: "资产曲线",
         },
       },
     },
@@ -88,9 +76,7 @@ const createChart = () => {
 onMounted(createChart);
 
 watchEffect(() => {
-  console.log("standerdData", props.standerdData);
-  console.log("strategyData", props.strategyData);
-  if (props.standerdData.length > 0 && props.strategyData.length > 0) {
+  if (props.assetsdData.length > 0) {
     createChart();
   }
 });

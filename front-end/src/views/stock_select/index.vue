@@ -56,7 +56,7 @@ const fetchStockData = async (date) => {
 };
 // 打开后自己把 name 中的参数复制到搜索栏中搜索
 const goToBaidu = (code) => {
-  window.open(`https://gushitong.baidu.com/stock/ab-000007?name=${code}`)
+  window.open(`/stock-simulate?code=${code}`)
 };
 </script>
 

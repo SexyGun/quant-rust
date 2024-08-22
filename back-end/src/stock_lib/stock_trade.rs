@@ -12,6 +12,8 @@ use ta::indicators::{AverageTrueRange as ATR, Maximum, Minimum};
 use ta::{DataItem, Next};
 
 // 股票交易类
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
 enum OrderType {
     Buy,  // 买入
     Sell, // 卖出
@@ -65,15 +67,18 @@ impl ST_Account {
         let asset = self.cash;
         // 计算持有股票的市值
         // fold 函数的第一个参数是初始值, 第二个参数是一个闭包, 闭包的第一个参数是初始值, 第二个参数是迭代的值
-        self.hold
-            .values()
-            .fold(asset, |acc, v| acc + *v as f64 * price)
+        self.hold.values().fold(asset, |acc, v| {
+            acc + *v as f64 * price * (1.0 - self.commission_coefficient - self.tax_coefficient)
+        })
     }
     pub fn send_order(&mut self, code: String, amount: usize, price: f64, order_type: OrderType) {
         match order_type {
             OrderType::Buy => {
                 // 更新资金剩余
-                self.cash = self.cash - price * amount as f64;
+                self.cash = self.cash
+                    - price
+                        * amount as f64
+                        * (1.0 + self.commission_coefficient + self.tax_coefficient);
                 // 更新股票持有数量
                 if let Some(hold) = self.hold.get(&code) {
                     self.hold.insert(code, hold + amount);
@@ -83,7 +88,10 @@ impl ST_Account {
             }
             OrderType::Sell => {
                 // 更新资金剩余
-                self.cash = self.cash + price * amount as f64;
+                self.cash = self.cash
+                    + price
+                        * amount as f64
+                        * (1.0 - self.commission_coefficient - self.tax_coefficient);
                 // 更新股票持有数量
                 if let Some(hold) = self.hold.get(&code) {
                     if amount == *hold {
@@ -108,16 +116,21 @@ pub async fn simulate_stock_trade(
     init_cash: f64,
     commission_coeff: Option<f64>,
     tax_coeff: Option<f64>,
+    n1_range: Option<(usize, usize)>,
+    n2_range: Option<(usize, usize)>,
+    win_range: Option<(f64, f64)>,
+    loss_range: Option<(f64, f64)>,
+    adjust_range: Option<(usize, usize)>,
 ) -> HashMap<
     String,
     (
-        (Vec<TradeResult>, Vec<Option<String>>, Vec<Option<String>>),
+        (Vec<TradeResult>, Vec<OperateRecord>),
         (
             Option<usize>,
             Option<usize>,
             Option<f64>,
             Option<f64>,
-            Option<i32>,
+            Option<usize>,
         ),
     ),
 > {
@@ -132,13 +145,13 @@ pub async fn simulate_stock_trade(
     let mut code_map: HashMap<
         String,
         (
-            (Vec<TradeResult>, Vec<Option<String>>, Vec<Option<String>>),
+            (Vec<TradeResult>, Vec<OperateRecord>),
             (
                 Option<usize>,
                 Option<usize>,
                 Option<f64>,
                 Option<f64>,
-                Option<i32>,
+                Option<usize>,
             ),
         ),
     > = HashMap::new();
@@ -148,15 +161,24 @@ pub async fn simulate_stock_trade(
             .await
             .expect("获取数据错误");
         let result: (
-            (Vec<TradeResult>, Vec<Option<String>>, Vec<Option<String>>),
+            (Vec<TradeResult>, Vec<OperateRecord>),
             (
                 Option<usize>,
                 Option<usize>,
                 Option<f64>,
                 Option<f64>,
-                Option<i32>,
+                Option<usize>,
             ),
-        ) = cal_ndayavg_mc(10000, st_account.clone(), df_stock);
+        ) = cal_ndayavg_mc(
+            10000,
+            st_account.clone(),
+            df_stock,
+            n1_range,
+            n2_range,
+            win_range,
+            loss_range,
+            adjust_range,
+        );
         code_map.insert(code, result);
     }
     code_map
@@ -253,10 +275,16 @@ fn col_trade_signal(
             res
         })
         .collect();
+
     // ATR 计算
     for (index, di) in data.into_iter().enumerate() {
-        result[index].atr_14 = Some(atr.next(&di));
+        if index < result.len() - 1 {
+            // atr 数据右移一位
+            result[index + 1].atr_14 = Some(atr.next(&di));
+        }
     }
+    result[0].atr_14 = result[1].atr_14;
+    // 所有右移操作都是为了让今天的信号根据昨天的数据进行计算
     // 买入价
     let mut buy_price = 0.0;
     for today in result.iter_mut() {
@@ -309,15 +337,26 @@ pub struct TradeResult {
     atr_14: Option<f64>,       // ATR 14 日
     total_assets: Option<f64>, // 总资产
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct OperateRecord {
+    order_type: OrderType,
+    hold: usize,
+    assets: f64,
+    operate_num: usize,
+    close: f64,
+    operate_date: Option<String>,
+}
 /// adjust_hold: 动态持仓买入/卖出波动线
 fn simulate_trade(
     df_stock: Vec<TradeSignal>,
     account: &mut ST_Account,
-    adjust_hold: Option<i32>,
-) -> (Vec<TradeResult>, Vec<Option<String>>, Vec<Option<String>>) {
+    adjust_hold: Option<usize>,
+) -> (Vec<TradeResult>, Vec<OperateRecord>) {
     let mut has_buy = false;
-    let mut buy_days_query = vec![];
-    let mut sell_days_query = vec![];
+    let mut operate_query: Vec<OperateRecord> = vec![];
+
     let mut df_stock: Vec<TradeResult> = df_stock
         .into_iter()
         .map(|stock| TradeResult {
@@ -338,24 +377,40 @@ fn simulate_trade(
     for today in df_stock.iter_mut() {
         if today.signal.unwrap_or(0) == 1 && !has_buy {
             // 买入信号
-            buy_days_query.push(today.date.clone());
             has_buy = true;
             account.send_order(
                 today.code.clone(),
                 (account.cash_available() * 0.01 / today.atr_14.unwrap_or(1.0)).floor() as usize,
                 today.close.unwrap(),
                 OrderType::Buy,
-            )
+            );
+            operate_query.push(OperateRecord {
+                order_type: OrderType::Buy,
+                hold: account.hold_available(today.code.clone()),
+                assets: account.latest_assets(today.close.unwrap()),
+                operate_num: (account.cash_available() * 0.01 / today.atr_14.unwrap_or(1.0)).floor()
+                    as usize,
+                operate_date: today.date.clone(),
+                close: today.close.unwrap(),
+            });
         } else if today.signal.unwrap_or(0) == 0 && has_buy {
             // 卖出信号
-            sell_days_query.push(today.date.clone());
             has_buy = false;
+            let operate_num = account.hold_available(today.code.clone());
             account.send_order(
                 today.code.clone(),
-                account.hold_available(today.code.clone()),
+                operate_num,
                 today.close.unwrap(),
                 OrderType::Sell,
-            )
+            );
+            operate_query.push(OperateRecord {
+                order_type: OrderType::Sell,
+                hold: account.hold_available(today.code.clone()),
+                assets: account.latest_assets(today.close.unwrap()),
+                operate_num,
+                operate_date: today.date.clone(),
+                close: today.close.unwrap(),
+            });
         }
         // 动态计算持仓的股票数量
         if has_buy {
@@ -364,35 +419,49 @@ fn simulate_trade(
             .floor() as usize;
             // 波动后加仓
             if posit_num_wave
-                > (account.hold_available(today.code.clone()) as i32 + adjust_hold.unwrap_or(0))
-                    as usize
+                > (account.hold_available(today.code.clone()) + adjust_hold.unwrap_or(0))
             {
-                buy_days_query.push(today.date.clone());
+                let operate_num = posit_num_wave - account.hold_available(today.code.clone());
                 account.send_order(
                     today.code.clone(),
-                    posit_num_wave - account.hold_available(today.code.clone()),
+                    operate_num,
                     today.close.unwrap(),
                     OrderType::Buy,
-                )
+                );
+                operate_query.push(OperateRecord {
+                    order_type: OrderType::Buy,
+                    hold: account.hold_available(today.code.clone()),
+                    assets: account.latest_assets(today.close.unwrap()),
+                    operate_num,
+                    operate_date: today.date.clone(),
+                    close: today.close.unwrap(),
+                });
             }
             // 波动后减仓
             if posit_num_wave
-                < (account.hold_available(today.code.clone()) as i32 - adjust_hold.unwrap_or(0))
-                    as usize
+                < (account.hold_available(today.code.clone()) - adjust_hold.unwrap_or(0))
             {
-                sell_days_query.push(today.date.clone());
+                let operate_num = account.hold_available(today.code.clone()) - posit_num_wave;
                 account.send_order(
                     today.code.clone(),
-                    account.hold_available(today.code.clone()) - posit_num_wave,
+                    operate_num,
                     today.close.unwrap(),
                     OrderType::Sell,
-                )
+                );
+                operate_query.push(OperateRecord {
+                    order_type: OrderType::Sell,
+                    hold: account.hold_available(today.code.clone()),
+                    assets: account.latest_assets(today.close.unwrap()),
+                    operate_num,
+                    operate_date: today.date.clone(),
+                    close: today.close.unwrap(),
+                });
             }
         }
 
         today.total_assets = Some(account.latest_assets(today.close.unwrap()));
     }
-    (df_stock, buy_days_query, sell_days_query)
+    (df_stock, operate_query)
 }
 
 // 蒙特卡洛算法模拟最优参数
@@ -400,24 +469,29 @@ fn cal_ndayavg_mc(
     n: usize,
     account: ST_Account,
     df_stock: Vec<StockPriceInfo>,
+    n1_range: Option<(usize, usize)>,
+    n2_range: Option<(usize, usize)>,
+    win_range: Option<(f64, f64)>,
+    loss_range: Option<(f64, f64)>,
+    adjust_range: Option<(usize, usize)>,
 ) -> (
-    (Vec<TradeResult>, Vec<Option<String>>, Vec<Option<String>>),
+    (Vec<TradeResult>, Vec<OperateRecord>),
     (
         Option<usize>,
         Option<usize>,
         Option<f64>,
         Option<f64>,
-        Option<i32>,
+        Option<usize>,
     ),
 ) {
-    let (n1_min, n1_max) = (5, 20);
-    let (n2_min, n2_max) = (1, 15);
-    let (win_min, win_max) = (1.5, 2.5);
-    let (loss_min, loss_max) = (0.5, 1.5);
-    let (adjust_min, adjust_max): (i32, i32) = (-100, 100);
+    let (n1_min, n1_max) = n1_range.unwrap_or((5, 20));
+    let (n2_min, n2_max) = n2_range.unwrap_or((1, 15));
+    let (win_min, win_max) = win_range.unwrap_or((1.5, 2.5));
+    let (loss_min, loss_max) = loss_range.unwrap_or((0.5, 1.5));
+    let (adjust_min, adjust_max) = adjust_range.unwrap_or((0, 100));
     let mut max_total = 0.0;
     let mut best_param = (None, None, None, None, None);
-    let mut simulate_result = (vec![], vec![], vec![]);
+    let mut simulate_result = (vec![], vec![]);
     for _ in 0..n {
         let mut rng: rand::prelude::ThreadRng = rand::thread_rng();
         let n1 = rng.gen_range(n1_min..n1_max);
