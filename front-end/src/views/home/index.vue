@@ -1,5 +1,10 @@
 <script setup>
 import Card from "@/components/Card.vue";
+import { testGetStock } from "./api";
+const test = () => {
+  console.log("test");
+  testGetStock();
+};
 const capabilityList = [
   {
     header: "大盘股票汇总",
@@ -38,7 +43,7 @@ const openTargetRoute = (url) => {
 <template>
   <div>
     <h1 class="title">选择你的韭菜</h1>
-
+    <button @click="test">test</button>
     <div id="app" class="container">
       <card
         v-for="ca in capabilityList"
