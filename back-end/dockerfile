@@ -2,46 +2,43 @@
 # •	使用 --mount=type=cache 避免重新编译依赖项。
 # •	使用第二个阶段创建一个精简的（约 100 MiB）、已准备好部署的镜像，只包含必要的内容。
 # •	将应用程序的所有资产打包到容器中。
+# FROM docker.io/rust:1-slim-bookworm as build
 
-
-# FROM rust:latest
-FROM docker.io/rust:1-slim-bookworm
-# 安装 sqlite3 及其开发包
-# RUN apt-get update && apt-get install -y \
-#     libsqlite3-dev \
-#     && rm -rf /var/lib/apt/lists/*
-# ARG pkg=rocket-app
-
+# RUN apt-get update && apt-get install -y python3.11 python3-pip openssl libssl-dev && rm -rf /var/lib/apt/lists/*
+# 可以使用上面命令创建一个基础镜像，其中包含了你的所有依赖。然后，你可以在你的应用的 Dockerfile 中使用这个基础镜像。这样，即使你的代码发生了改变，你的依赖就不需要重新安装。
+FROM base-rust-image AS build
 ## 设定工作目录
-WORKDIR /app
+WORKDIR /build
+ARG pkg
 
 COPY . .
+# 设置环境变量
+ENV OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu
+ENV OPENSSL_INCLUDE_DIR=/usr/include/openssl
+
 # 在 shell 脚本中，set -eux 是一个常用的选项组合，用于控制脚本的执行行为：
 # •	-e：当脚本中的任何命令返回非零退出状态码时，脚本立即退出。这有助于防止脚本继续执行可能因错误而导致问题的后续命令。
 # •	-u：当脚本中使用未定义的变量时，脚本会报错并退出。这有助于捕捉潜在的拼写错误或变量定义问题。
 # •	-x：在脚本执行时显示每个命令及其扩展结果。这有助于调试，能够看到脚本执行的每一步以及实际执行的命令。
-
-RUN --mount=type=cache,target=/app/target \
+RUN --mount=type=cache,target=/build/target \
     --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    set -eux;
-RUN cargo build --release;
-RUN objcopy --compress-debug-sections ./target/release/back-end ./main
-# 列出所有文件和目录
-RUN ls -la /app
+    set -eux; \
+    cargo build --release; \
+    objcopy --compress-debug-sections ./target/release/$pkg ./main
 
 # ################################################################################
-# FROM centos:7
+FROM docker.io/debian:bookworm-slim
 
-# WORKDIR /app
+# Install libssl
+RUN apt-get update && apt-get install -y libssl-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
 
-## copy the binary
-# COPY ./target/release/$pkg ./
+# copy the main binary
+COPY --from=build /build/main ./
 
-## copy runtime assets which may or may not exist
-# COPY --from=build /build/Rocket.tom[l] ./static
-# COPY --from=build /build/stati[c] ./static
-# COPY --from=build /build/template[s] ./templates
+# copy runtime assets which may or may not exist
+COPY --from=build /build/Rocket.tom[l] ./
 
 ## 确保容器在端口 8080 上监听
 ## ENV 代表 docker 会将其设置为环境变量

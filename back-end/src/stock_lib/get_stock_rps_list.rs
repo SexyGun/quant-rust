@@ -8,13 +8,13 @@ use chrono::{Duration, NaiveDate, Utc};
 use diesel::dsl::{count_star, max, min};
 use diesel::{ExpressionMethods, QueryDsl};
 use ndarray::Array1;
-use pyo3::prelude::*;
 use rocket::tokio;
 use rocket::tokio::time::{sleep, Duration as to_do};
 use rocket_db_pools::diesel::{AsyncConnection, RunQueryDsl};
 use rocket_db_pools::Connection;
 use std::ops::DerefMut;
 // 导入 Rocket 的 Debug 类型，用于调试错误响应。
+use rocket::serde::{Deserialize, Serialize};
 use rocket::State;
 use std::sync::Arc;
 
@@ -44,83 +44,82 @@ use std::sync::Arc;
 
 // 定义一个通用的 Result 类型，默认错误类型为 AppErrorEnum，用于处理 col_stock_rps 中的错误。
 type Result<T, E = AppErrorEnum> = std::result::Result<T, E>;
-use pyo3::types::PyList;
-use std::path::Path;
+
+#[derive(Deserialize, Debug)]
+#[serde(crate = "rocket::serde")]
+struct DailyRes {
+    request_id: String,
+    code: i32,
+    msg: String,
+    data: ResData,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(crate = "rocket::serde")]
+struct ResData {
+    fields: Vec<String>,
+    items: Vec<(
+        String,         // ts_code
+        Option<String>, // trade_date
+        Option<f64>,    // open
+        Option<f64>,    // high
+        Option<f64>,    // low
+        Option<f64>,    // close
+        Option<f64>,    // pre_close
+        Option<f64>,    // change
+        Option<f64>,    // pct_chg
+        Option<f64>,    // vol
+        Option<f64>,    // amount
+    )>, // Vec<()>)
+    has_more: bool,
+}
+#[derive(Serialize, Debug)]
+#[serde(crate = "rocket::serde")]
+struct DailyReq {
+    api_name: String,
+    token: String,
+    params: Params,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(crate = "rocket::serde")]
+struct Params {
+    ts_code: String,
+    start_date: String,
+    end_date: String,
+}
+
 /// 获取单只股票一段时间内的价格数据
 /// ts_code：股票代码
 /// date_range：（开始时间，结束时间）时间范围
-///
-/// let code = r#"
-/// import tushare as ts
-/// my_ts_token = '5ad981f92afb58c9b91c87a22d8e03417e13a7af1cbe458aecf95164'
-/// ts.set_token(my_ts_token)
-/// pro = ts.pro_api()
-
-/// def GetStockDataApi(*args, **kwargs):
-///     return []
-///     # 获取股票原始数据
-///     df_stockload = pro.daily(
-///         ts_code=args[0], start_date=20240814, end_date=args[2]
-///     )
-///     if df_stockload.empty:
-///         return []
-///     return df_stockload.to_dict(orient='records')
-///         "#;
-/// let fun: Py<PyAny> = PyModule::from_code_bound(py, &code, "", "")
-///     .expect("from_code_bound err")
-///     .getattr("GetStockDataApi")?
-///     .into();
-/// 以上是原实现方法，其中使用了 from_code_bound 方法，这个方法的官方说明为：
-/// PyModule::from_code_bound can be used to generate a Python module which can then be used just as if it was imported with PyModule::import.
-/// Q-Gpt：这个是原文指引，使用 from_code_bound 时，
-/// 他会生成一个 Python module 此时如果我线程的并发量够快的情况下，
-/// 是不是会出现其内部的文件IO 还没有处理完毕，我这边就先读取的情况，
-/// 进而导致某一些线程会触发 PyErr { type: <class 'pandas.errors.EmptyDataError'>, value: EmptyDataError('No columns to parse from file'), traceback: Some(<traceback object at 0x1326f7980>) } 这个错误
-/// A-Gpt：使用 PyModule::from_code_bound 在多线程环境下可能会遇到线程并发导致的文件 I/O 问题，特别是在 Python 模块依赖于外部文件或资源时
-/// 如果你的 Python 模块确实需要依赖文件系统，并且这些文件可能会被多个线程访问，可以考虑以下策略：
-/// - **将文件预先准备好**:
-/// 确保所有文件在模块创建之前都已经准备好，并且文件内容是稳定的。
-/// - **在每个线程中使用独立的 Python 环境**:
-/// 如果可能，使用 `PyModule::import` 而不是 `PyModule::from_code_bound` 来避免因动态代码创建而引发的多线程问题。
-/// - **使用 Python 内建的锁机制**:
-/// 在 Python 代码中使用线程锁（例如 `threading.Lock`）来保护文件访问。
-/// 通过这些策略，可以减少因多线程访问共享资源而导致的问题，提高程序的稳定性。
-///
-/// 结合答案，目前确认是使用 from_code_bound 会创建一个临时的 module，然后再去读这个文件，
-/// 这样在多线程环境下，会存在还没有创建文件时就有新的线程进来要进行访问，导致错误。
 pub async fn get_stock_price_data(
     ts_code: String,
     date_range: (String, String),
-) -> PyResult<Vec<StockPriceInfo>> {
+) -> Result<Vec<StockPriceInfo>, reqwest::Error> {
     let (stock_start_time, stock_end_time) = date_range;
-    // 初始化 Python 解释器
-    // Python::with_gil 是一个用于获取 Python 全局解释器锁（GIL）的帮助器。
-    // Python 的 GIL 是一个全局锁，用于保证在同一时间只有一个线程可以执行 Python 代码。
-    // with_gil 会在闭包中自动管理 GIL。
-    Python::with_gil(|py| {
-        // 将要使用的方法以静态的方式进行导入
-        // Define the path to your Python module
-        let module_dir = Path::new("/Users/lichen/workplace/quant-rust/back-end/src/py_tools");
-        let module_name = "GetStockDataApi";
-        // Add the module directory to sys.path
-        // 在系统将你的 python 模块进行注册，以便后续进行导入
-        let sys = PyModule::import_bound(py, "sys")?;
-        let binding = sys.getattr("path")?;
-        let path_list = binding.downcast::<PyList>()?;
-        if path_list.get_item(0).unwrap().extract::<&str>().unwrap() != module_dir.to_str().unwrap()
-        {
-            // 插入操作可以优化为如果有就不插入
-            path_list.insert(0, module_dir.to_str().unwrap())?;
-        }
-        // Import the Python module by its name
-        let my_module = PyModule::import_bound(py, module_name)?;
-        // Get the function from the module
-        let get_stock_data_api = my_module.getattr("GetStockDataApi")?;
 
-        let args = (ts_code, stock_start_time, stock_end_time);
-        let result: Vec<StockPriceInfo> = get_stock_data_api.call1(args)?.extract()?;
-        Ok(result)
-    })
+    let client = reqwest::Client::new();
+    let res = client
+        .post("http://api.tushare.pro")
+        .json(&DailyReq {
+            api_name: "daily".to_string(),
+            token: "---".to_string(),
+            params: Params {
+                ts_code,
+                start_date: stock_start_time,
+                end_date: stock_end_time,
+            },
+        })
+        .send()
+        .await?;
+    let result: DailyRes = res.json().await?;
+    let stock_list: Vec<StockPriceInfo> = result
+        .data
+        .items
+        .into_iter()
+        .map(|item| StockPriceInfo::from(item))
+        .collect();
+    Ok(stock_list)
 }
 
 #[derive(Debug)]
@@ -173,7 +172,8 @@ pub async fn col_stock_rps(
     let mut tasks = vec![];
     // 线程数最好不超过本机的 CPU 核心数
     // 我的电脑为 11 核心，所以这里设置为 10
-    for offset in 0..10 {
+    // 服务器为2核心，在处理任务时出现了连接超时的问题，一共出现了3次，所以这里设置为 5
+    for offset in 0..5 {
         // 启动 10 个线程
         let today_str = Arc::clone(&today_str);
         let code_list = Arc::clone(&share_code_list);
@@ -185,7 +185,7 @@ pub async fn col_stock_rps(
         let task = tokio::spawn(async move {
             let mut result = vec![];
             for (idx, code) in code_list.iter().enumerate() {
-                if (idx % 10) == offset {
+                if (idx % 5) == offset {
                     let db_conn = db_conn.deref_mut();
                     match get_local_stock_price_data(db_conn, code.to_string()).await {
                         Ok(stock_basic_info_list) => {
@@ -194,7 +194,7 @@ pub async fn col_stock_rps(
                                     stock.trade_date.as_ref().unwrap() == today_str.as_str()
                                 });
                             let mut cur_today_str = today_str.to_string();
-                            // 股票周六日不交易，所以当天的数据不存在
+                            // 股票周六日不交易，所以当天的数据不存在Ç
                             // 如果当天的数据不存在，向前查找
                             while last_date_index.is_none() {
                                 // 定义格式化字符串
@@ -390,6 +390,8 @@ pub async fn fetch_stock_daily_range(
                     || stock.trade_date.as_ref().unwrap() > &end
             })
             .collect();
+    } else {
+        need_insert = all_stock;
     }
     println!("need_insert: {:?}", need_insert.len());
     // 如果 need_insert 为空，直接返回

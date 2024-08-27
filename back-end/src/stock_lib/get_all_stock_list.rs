@@ -1,25 +1,55 @@
 use crate::db::stock_info::StockInfo;
-use pyo3::prelude::*;
+use rocket::serde::Deserialize;
+use std::collections::HashMap;
 
-pub async fn get_all_stock_data() -> PyResult<Vec<StockInfo>> {
-    // 初始化 Python 解释器
-    pyo3::prepare_freethreaded_python();
-    // Python::with_gil 是一个用于获取 Python 全局解释器锁（GIL）的帮助器。
-    // Python 的 GIL 是一个全局锁，用于保证在同一时间只有一个线程可以执行 Python 代码。
-    // with_gil 会在闭包中自动管理 GIL。
-    Python::with_gil(|py| {
-        let code = r#"
-import tushare as ts
-my_ts_token = '5ad981f92afb58c9b91c87a22d8e03417e13a7af1cbe458aecf95164'
-ts.set_token(my_ts_token)
-pro = ts.pro_api()
+#[derive(Deserialize, Debug)]
+#[serde(crate = "rocket::serde")]
+struct StockRes {
+    request_id: String,
+    code: i32,
+    msg: String,
+    data: ResData,
+}
 
-def GetAllStockData():
-    stock_list = pro.stock_basic()
-    return stock_list.to_dict(orient="records")
-"#;
-        let fun = PyModule::from_code_bound(py, code, "", "")?.getattr("GetAllStockData")?;
-        let result: Vec<StockInfo> = fun.call0()?.extract()?;
-        Ok(result)
-    })
+#[derive(Deserialize, Debug)]
+#[serde(crate = "rocket::serde")]
+struct ResData {
+    fields: Vec<String>,
+    items: Vec<(
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    )>,
+    has_more: bool,
+}
+
+pub async fn get_all_stock_data() -> Result<Vec<StockInfo>, reqwest::Error> {
+    let mut map = HashMap::new();
+    map.insert("api_name", "stock_basic");
+    map.insert(
+        "token",
+        "5ad981f92afb58c9b91c87a22d8e03417e13a7af1cbe458aecf95164",
+    );
+
+    let client = reqwest::Client::new();
+    let res = client
+        .post("http://api.tushare.pro")
+        .json(&map)
+        .send()
+        .await?;
+    let result: StockRes = res.json().await?;
+    let stock_list: Vec<StockInfo> = result
+        .data
+        .items
+        .into_iter()
+        .map(|item| StockInfo::from(item))
+        .collect();
+    Ok(stock_list)
 }

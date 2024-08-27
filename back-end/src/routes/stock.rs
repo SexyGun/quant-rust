@@ -5,7 +5,6 @@ use crate::stock_lib::{
     stock_trade::{simulate_stock_trade, OperateRecord, TradeResult},
 };
 use chrono::NaiveDate;
-use diesel::expression::is_aggregate::No;
 use diesel::{ExpressionMethods, QueryDsl};
 use rocket::fairing::AdHoc;
 use rocket::response::Debug; // 导入 Rocket 的 Debug 类型，用于调试错误响应。

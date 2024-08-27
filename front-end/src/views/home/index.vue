@@ -8,21 +8,21 @@ const test = () => {
 const capabilityList = [
   {
     header: "大盘股票汇总",
-    content: "总有一款 A 股匹配您",
+    content: "汇集了大盘股票的基本信息。",
     image:
-      "https://wx2.sinaimg.cn/bmiddle/006ARE9vgy1fu4j4kq3pwj31gf0u0gnj.jpg",
+      "https://p2.itc.cn/q_70/images03/20210303/c2b9fb463c8442efa6318ea5fae48fb8.jpeg",
     targetRoute: "/stock",
   },
   {
-    header: "Todo 股票排名（选股指南？）",
-    content: "计算 Rps 排名并展示",
-    image: "https://tva3.sinaimg.cn/large/006rPqrTgy1gof3kgnqq8j30yh0voqa8.jpg",
+    header: "股票 RPS 排名",
+    content: "Rps（股票价格强度指数）使用最近 N 天，股票的变化幅度进行全局排名，取前 300 进行展示。",
+    image: "https://d3mww1g1pfq2pt.cloudfront.net/Avatar/ckm0ait5yrf9z0996wv7idooz/1620092872733.png",
     targetRoute: "/stock-select",
   },
   {
-    header: "Todo 关注股票",
+    header: "股票回测",
     content:
-      "展示选择股票的基本信息，提供几种基本的量化算法的买入卖出点，并展示回测效果",
+      "模拟了单只股票 N 日突破算法的回测结果，并给出了模拟参数。",
     image:
       "https://img1.baidu.com/it/u=1721606346,478465930&fm=253&fmt=auto&app=138&f=JPEG?w=800&h=460",
     targetRoute: "/stock-simulate",
@@ -31,7 +31,7 @@ const capabilityList = [
     header: "Todo 套利？",
     content: "目前还不知道什么叫套利 😊",
     image:
-      "https://tvax3.sinaimg.cn/crop.0.0.444.444.1024/006A3pM6ly8fog8ajr6dxj30ch0cc16a.jpg?KID=imgbed,tva&Expires=1640361538&ssig=0Kbx2SfkFf",
+      "https://images.ctee.com.tw/newsphoto/2021-05-12/1024/20210512700209.jpg",
     targetRoute: "/stock",
   },
 ];
@@ -43,7 +43,7 @@ const openTargetRoute = (url) => {
 <template>
   <div>
     <h1 class="title">选择你的韭菜</h1>
-    <button @click="test">test</button>
+    <!-- <button @click="test">test</button> -->
     <div id="app" class="container">
       <card
         v-for="ca in capabilityList"

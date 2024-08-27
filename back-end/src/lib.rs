@@ -10,13 +10,11 @@ extern crate rocket;
 
 use core::fmt;
 use core::any::Any;
-use pyo3::PyErr;
 use rocket::tokio::task::JoinError;
 
 /// 错误处理
 #[derive(Debug)]
 pub enum AppErrorEnum {
-    PythonError(PyErr),
     DieselError(diesel::result::Error),
     IoError(std::io::Error),
     ThreadErr(Box<dyn Any + Send + 'static>),
@@ -27,7 +25,6 @@ pub enum AppErrorEnum {
 impl fmt::Display for AppErrorEnum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AppErrorEnum::PythonError(err) => write!(f, "Python error: {}", err),
             AppErrorEnum::DieselError(err) => write!(f, "Diesel error: {}", err),
             AppErrorEnum::IoError(err) => write!(f, "IO error: {}", err),
             AppErrorEnum::ThreadErr(err) => write!(f, "Thread execute error: {:?}", err),
@@ -37,11 +34,6 @@ impl fmt::Display for AppErrorEnum {
     }
 }
 
-impl From<PyErr> for AppErrorEnum {
-    fn from(error: PyErr) -> Self {
-        AppErrorEnum::PythonError(error)
-    }
-}
 
 impl From<diesel::result::Error> for AppErrorEnum {
     fn from(error: diesel::result::Error) -> Self {

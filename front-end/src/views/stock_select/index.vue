@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { ElDatePicker, ElButton, ElInputNumber } from "element-plus";
+import { ElDatePicker, ElButton, ElInputNumber, ElLoading } from "element-plus";
 import {
   getStockRps,
   getStockRpsList,
@@ -13,6 +13,9 @@ import moment from "moment";
 // mounted
 onMounted(() => {
   fetchStockData(moment(searchDate.value).format("YYYYMMDD"));
+  let params = new URLSearchParams(window.location.search);
+  let name = params.get("username"); // 'myParam' 是你想获取的参数的名称
+  username.value = name || "";
 });
 
 // data
@@ -34,17 +37,20 @@ const searchDate = ref(new Date());
 const importStockRpsLoading = ref(false);
 const importDailyStockLoading = ref(false);
 const clearStockRpsLoading = ref(false);
-const searchDateRange = ref(120);
+const searchDateRange = ref(60);
+const username = ref("");
 
 // computed
 
 // methods
 const importStockRps = async () => {
   importStockRpsLoading.value = true;
+  const loadingInstance = ElLoading.service({ fullscreen: true })
   await getStockRps({
     date: moment(searchDate.value).format("YYYYMMDD"),
     range: searchDateRange.value,
   });
+  loadingInstance.close()
   importStockRpsLoading.value = false;
   changeDate();
 };
@@ -60,7 +66,9 @@ const changeDate = () => {
   fetchStockData(moment(searchDate.value).format("YYYYMMDD"));
 };
 const fetchStockData = async (date) => {
+  const loadingInstance = ElLoading.service({ fullscreen: true })
   const res = await getStockRpsList({ date });
+  loadingInstance.close();
   stockList.value = res.data || [];
 };
 // 打开后自己把 name 中的参数复制到搜索栏中搜索
@@ -158,6 +166,7 @@ const colRankChange = (stock) => {
         step="1"
         step-strictly
         style="margin-right: 10px"
+        v-if="username === 'leechen'"
       />
       <ElButton
         @click="importStockRps"
@@ -165,13 +174,17 @@ const colRankChange = (stock) => {
         :loading="importStockRpsLoading"
         >Rps 新数据入库</ElButton
       >
-      <ElButton @click="fetchClearStockRps" :loading="clearStockRpsLoading"
+      <ElButton
+        @click="fetchClearStockRps"
+        :loading="clearStockRpsLoading"
+        v-if="username === 'leechen'"
         >清空 Rps 数据</ElButton
       >
       <ElButton
         @click="importDailyStock"
         type="primary"
         :loading="importDailyStockLoading"
+        v-if="username === 'leechen'"
         >股票新数据入库</ElButton
       >
     </div>

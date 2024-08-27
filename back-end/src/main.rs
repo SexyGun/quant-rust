@@ -44,10 +44,6 @@ fn rocket() -> _ {
     .to_cors()
     .unwrap(); // `unwrap` 是为了简化示例，实际应用中应处理可能的错误
 
-    // 在 Rust 程序中，通常在程序的初始化阶段（例如在 main 函数或应用启动时）调用一次 pyo3::prepare_freethreaded_python()。
-    // 这是确保整个程序生命周期内 Python 解释器的多线程支持正确配置的最佳实践。
-    // 初始化后，可以安全地在程序的其他部分（包括异步函数和多线程任务）中调用 Python 代码。
-    pyo3::prepare_freethreaded_python();
     rocket::build()
         .attach(cors)
         .attach(AdHoc::on_ignite("Db Init Stage", |rocket| async {
