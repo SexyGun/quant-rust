@@ -28,3 +28,6 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+wasm_life_game/target
+wasm_life_game/pkg

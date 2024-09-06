@@ -28,11 +28,11 @@ const capabilityList = [
     targetRoute: "/stock-simulate",
   },
   {
-    header: "Todo 套利？",
-    content: "目前还不知道什么叫套利 😊",
+    header: "生命游戏",
+    content: "使用 wasm 实现的生命游戏。",
     image:
       "https://images.ctee.com.tw/newsphoto/2021-05-12/1024/20210512700209.jpg",
-    targetRoute: "/stock",
+    targetRoute: "/wasm-life-game",
   },
 ];
 const openTargetRoute = (url) => {

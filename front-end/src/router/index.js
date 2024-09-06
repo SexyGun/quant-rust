@@ -24,6 +24,11 @@ const router = createRouter({
       name: 'stocksimulate',
       component: () => import('../views/stock_simulate/index.vue')
     },
+    {
+      path: '/wasm-life-game',
+      name: 'wasmLifeGame',
+      component: () => import('../views/wasm_life_game/index.vue')
+    },
   ]
 })
 
