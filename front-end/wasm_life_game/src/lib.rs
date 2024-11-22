@@ -107,13 +107,13 @@ impl Universe {
         self.to_string()
     }
     pub fn tick(&mut self) {
-        let _timer = Timer::new("Universe::tick");
-        let mut next = self.cells.clone();
+        let _timer: Timer<'_> = Timer::new("Universe::tick");
+        let mut next: Vec<Cell> = self.cells.clone();
         for row in 0..self.height {
             for col in 0..self.width {
-                let idx = self.get_index(row, col);
+                let idx: usize = self.get_index(row, col);
                 let cell = self.cells[idx];
-                let live_neighbors = self.live_neighbor_count(row, col);
+                let live_neighbors: u8 = self.live_neighbor_count(row, col);
 
                 let next_cell = match (cell, live_neighbors) {
                     // 规则 1: 任何活细胞周围少于 2 个活细胞会死亡
